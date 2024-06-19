@@ -121,28 +121,31 @@ const TileSize = 20;
 const COl0 = "#8d8d88";
 const COl1 = "#e7e7e7";
 const COl2 = "#000000";
-const COl3 = "#ffffff";
+const COl3 = "red";
+const COl4 = "#ffffff";
 class TetrisBox{
     constructor(pos){
-        this.pos = pos;
+        this.x = pos.x;
+        this.y = pos.y;
     }
     draw(ctx){
         var s = this.GetSprite();
-        ctx.drawImage(s,this.pos.x,this.pos.y);
+        ctx.drawImage(s,this.x,this.y);
     }
     GetSprite(){
-        if(TetrisPeice.BOX) return TetrisPeice.BOX;
+        if(TetrisBox.BOX) return TetrisBox.BOX;
         var c = G.makeCanvas(TileSize,TileSize);
-        c.ctx.fillStyle = COl2;
+        c.ctx.fillStyle = COl3;
         c.ctx.fillRect(0,0,c.width,c.height);
         c.ctx.clearRect(1,1,c.width-2,c.height-2);
         c.ctx.fillRect(3,3,c.width-6,c.height-6);
-        TetrisPeice.BOX = c;
-        return TetrisPeice.BOX;
+        TetrisBox.BOX = c;
+        return TetrisBox.BOX;
     }
 }
 class TetrisPeice{
-    constructor(){
+    constructor(pos){
+        this.pos = pos;
         this.maps = [];
         this.current = 0;
     }
@@ -156,43 +159,32 @@ class TetrisPeice{
         TetrisPeice.BOX = c;
         return TetrisPeice.BOX;
     }
-    GetMaps(){
-        if(TetrisPeice.MAPS) return TetrisPeice.MAPS;
-        var box = [[1,1],[1,1]];
-        var bar = [1,1,1,1,1];
-        var RL1 = [[1,0],[1,0],[1,1]];
-        var RL2 = [[0,0,1],[1,1,1],];
-        var RL3 = [[1,1],[0,1],[0,1]];
-        var RL4 = [[1,1,1],[1,0,0]];
-        var LL1 = [[0,1],[0,1],[1,1]];
-        var LL2 = [[1,1,1],[0,0,1]];
-        var LL3 = [[1,1],[1,0],[1,0]];
-        var LL4 = [[1,0,0],[1,1,1]];
-        var RN1 = [[1,1,0],[0,1,1]];
-        var RN2 = [[0,1],[1,1],[1,0]];
-        var LN1 = [[0,1,1],[1,1,0]];
-        var LN2 = [[1,0],[1,1],[0,1]];
-        TetrisPeice.MAPS = [
-            box,bar,RL1,LL1,RN1,LN1
-        ];
-        return TetrisPeice.MAPS;
-    }
     GetSprite(map){
         var box = this.GetBox();
         var s = G.makeCanvas(TileSize*map.length,TileSize*map[0].length);
         for(let i = 0 ; i < map.length ; i++){
             for(let j = 0 ; j < map[i].length;j++){
                 if(map[i][j] === 1){
-                    s.ctx.drawImage(box,TileSize*j,TileSize*i);
+                    s.ctx.drawImage(box,TileSize*i,TileSize*j);
                 }
             }
         }
         // document.body.append(s);
         return s;
     }
-    static makeRandom(){
-        var peice = new TetrisPeice(1);
-        return peice;
+    static makeRandom(pos){
+        return TetrisPeice.GetForType(G.randInt(1,6),pos);
+    }
+    static GetForType(type,pos){
+        switch(type){
+            case 1 : return new BarTP(pos);
+            case 2 : return new RLTP(pos);
+            case 3 : return new LLTP(pos);
+            case 4 : return new LNTP(pos);
+            case 5 : return new RNTP(pos);
+            case 6 : return new BoxTP(pos);
+            default : return new RLTP(pos);
+        }
     }
     getBoxes(){
         var boxes = [];
@@ -200,81 +192,125 @@ class TetrisPeice{
         for(let i = 0 ; i < map.length ; i++){
             for(let j = 0 ; j < map[i].length;j++){
                 if(map[i][j] === 1){
-                    boxes.push(new BoxTP({
-                        x:j,y:i
+                    boxes.push(new TetrisBox({
+                        x: this.pos.x + j * TileSize,y : this.pos.y + i * TileSize
                     }));
                 }
             }
         }
         return boxes;
     }
-    move(vx,vy){
+    move(vx,vy,game){
         var destination = {
             x: this.pos.x + TileSize * vx,
             y: this.pos.y + TileSize * vy,
         };
+        var boxes = this.getBoxes();
+        for(let i in boxes){
+            var box = boxes[i];
+            if(box.x + TileSize * vx < 0) return false;
+            if(box.x + TileSize * vx > TileSize * 10) return false;
+            if(box.y + TileSize * vy >= TileSize * 20) return false;
+            if(game.isOccupied(box.x + TileSize * vx, box.y + TileSize * vy)) return false;
+        }
         if(destination.x < 0) return false;
         if(destination.x > TileSize * 10) return false;
-        
         this.pos.x = destination.x;
+        this.pos.y = destination.y;
+        return true;
+    }
+    update(time,game){
+        if(!this.move(0,1,game)){
+            game.handlePeiceStopMoving(this);
+        }
+    }
+    draw(ctx){
+        ctx.drawImage(this.sprite,this.pos.x,this.pos.y);
+    }
+    rotate(){
+        this.current++;
+        if(this.current >= this.maps.length) this.current = 0;
+        this.sprite = this.GetSprite(this.maps[this.current]);
+    }
+}
+class BarTP extends TetrisPeice{
+    constructor(pos){
+        super(pos);
+        this.maps = [
+            [[1,1,1,1,1]],
+            [[1],[1],[1],[1],[1]]
+        ]
+        this.sprite = this.GetSprite(this.maps[this.current]);
+    }
+}
+class RLTP extends TetrisPeice{
+    constructor(pos){
+        super(pos);
+        this.maps = [
+            [[1,0],[1,0],[1,1]],
+            [[0,0,1],[1,1,1],],
+            [[1,1],[0,1],[0,1]],
+            [[1,1,1],[1,0,0]]
+        ]
+        this.sprite = this.GetSprite(this.maps[this.current]);
+    }
+}
+class LLTP extends TetrisPeice{
+    constructor(pos){
+        super(pos);
+        this.maps = [
+            [[0,1],[0,1],[1,1]],
+            [[1,1,1],[0,0,1]],
+            [[1,1],[1,0],[1,0]],
+            [[1,0,0],[1,1,1]]
+        ]
+        this.sprite = this.GetSprite(this.maps[this.current]);
+    }
+}
+class LNTP extends TetrisPeice{
+    constructor(pos){
+        super(pos);
+        this.maps = [
+            [[0,1,1],[1,1,0]],
+            [[1,0],[1,1],[0,1]]
+        ]
+        this.sprite = this.GetSprite(this.maps[this.current]);
+    }
+}
+class RNTP extends TetrisPeice{
+    constructor(pos){
+        super(pos);
+        this.maps = [
+            [[1,1,0],[0,1,1]],
+            [[0,1],[1,1],[1,0]]
+        ]
+        this.sprite = this.GetSprite(this.maps[this.current]);
     }
 }
 class BoxTP extends TetrisPeice{
     constructor(pos){
-        super();
-        console.log(pos);
-        this.pos = pos;
+        super(pos);
         this.maps = [
             [[1,1],[1,1]]
         ]
         this.sprite = this.GetSprite(this.maps[this.current]);
     }
-
-    update(time,game){
-        var destination = {
-            x: this.pos.x,// + TileSize,
-            y: this.pos.y + TileSize,
-        };
-        var map = this.maps[this.current];
-        if(destination.y > game.grid.height - map.length * TileSize){
-
-            game.handlePeiceStopMoving(this);
-            return false;
-        }
-        //checking collision
-        for(let i = 0 ; i < map.length ; i++){
-            for(let j = 0 ; j < map[i].length;j++){
-                if(map[i][j] === 1){
-                    //check if box exist at 
-                    // console.log(destination,i,j);
-                }
-            }
-        }
-        
-        this.pos.x = destination.x;
-        this.pos.y = destination.y;
-    }
-    draw(ctx){
-        ctx.drawImage(this.sprite,this.pos.x,this.pos.y);
-    }
-
-
 }
 class Game{
     constructor(){
         this.init();
         document.addEventListener('keydown', (e)=>{
-            console.log(e);
             if(e.key === 'ArrowLeft'){
-                this.currentPeice.move(-1,0);
+                this.currentPeice.move(-1,0,this);
             }
             else if (e.key === 'ArrowRight'){
-                this.currentPeice.move(1,0);
+                this.currentPeice.move(1,0,this);
             }
             else if (e.key === 'ArrowDown'){
-                this.currentPeice.move(0,2);
+                this.currentPeice.move(0,1,this);
             }
             else if (e.key === 'ArrowUp'){
+                this.currentPeice.rotate();
                 //rotate peice
             }
         }, false);
@@ -288,16 +324,26 @@ class Game{
         var gbg = G.gridBG(COL1,null,TileSize,1);
         var gbgfull = G.gridToFull(gbg,this.grid.width,this.grid.height,COL1);
         this.grid.ctx.drawImage(gbgfull,0,0);
-
-
         this.boxes = [];
         this.speed = 0;
         this.speedMeter = 0;
-
-
         this.score = 0;
         this.lines = 0;
         this.level = 0;
+        this.currentPeice = TetrisPeice.makeRandom({x:TileSize*4,y:0});
+        this.next = TetrisPeice.makeRandom({x:TileSize*4,y:0});
+        document.body.append(this.canvas);
+        this.update(0);
+    }
+
+    update(time){
+        this.speedMeter++;
+        if(this.speedMeter > 20 - this.speed * 20 ){
+            this.speedMeter = 0;
+            this.currentPeice.update(time,this);
+        }
+
+        this.canvas.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
 
         this.canvas.ctx.drawImage(this.grid,0,0);
         this.canvas.ctx.fillText("SCORE",this.grid.width + TileSize/3, 10);
@@ -307,37 +353,53 @@ class Game{
         this.canvas.ctx.fillText(`LEVEL`,this.grid.width + TileSize/3, 70);
         this.canvas.ctx.fillText(`${this.level}`,this.grid.width + TileSize/3, 80);
         this.canvas.ctx.fillText(`NEXT`,this.grid.width + TileSize/3, 100);
+        this.canvas.ctx.drawImage(this.next.sprite,this.grid.width + TileSize/3, 110);
 
 
-        this.currentPeice = new BoxTP({x:TileSize*4,y:0});
-
-
-        // this.next = TetrisPeice.makeRandom();
-        // this.current = TetrisPeice.makeRandom();
-        // this.canvas.ctx.drawImage(this.next.sprite,this.grid.width + TileSize/3, 110);
-        document.body.append(this.canvas);
-        this.update(0);
-    }
-
-    update(time){
-
-        this.speedMeter++;
-        if(this.speedMeter > 30 - this.speed ){
-            this.speedMeter = 0;
-            this.currentPeice.update(time,this);
-        }
-        this.canvas.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
         this.canvas.ctx.drawImage(this.grid,0,0);
         this.currentPeice.draw(this.canvas.ctx);
-
+        this.boxes.forEach(x=>{
+            x.draw(this.canvas.ctx);
+        })
         requestAnimationFrame((t)=>this.update(t));
     }
+    isOccupied(x,y){
+        return this.boxes.filter(b=> b.x == x && b.y == y).length != 0;
+    }
+    checkRowsCompletion(){
+        var maxy = 0;
+        this.boxes.forEach(b=>{
+            maxy = Math.min(b.y,maxy)
+        })
+        for(var y = TileSize*20; y > 0; y -= TileSize){
+            var row = this.boxes.filter(b=> b.y == y );
+            if(row.length == 10){
+                this.lines++;
+                this.score += 10 * (this.level+1);
+                this.boxes = this.boxes.filter(b=> b.y != y);
+                this.boxes.forEach(box=>{
+                    if(box.y < y){
+                        box.y += TileSize
+                    };
+                })
+                return this.checkRowsCompletion();
+            }
+        }
+        return true;
+    }
     handlePeiceStopMoving(peice){
+        
+        peice.getBoxes().forEach(box=>{
+            var exist = this.boxes.filter(x=> x.x == box.x && x.y == box.y);
+            if(exist.length > 0){
+                
+            }
+            this.boxes.push(box);
+            this.checkRowsCompletion()
+        })
 
-        this.boxes.push(peice.getBoxes());
-        console.log(peice);
-        this.currentPeice = new BoxTP({x:TileSize*4,y:0});
-
+        this.currentPeice = this.next;
+        this.next = TetrisPeice.makeRandom({x:TileSize*4,y:0});
     }
 }
 document.addEventListener('DOMContentLoaded', function () {
