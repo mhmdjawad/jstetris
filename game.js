@@ -173,7 +173,7 @@ class TetrisPeice{
         return s;
     }
     static makeRandom(pos){
-        return TetrisPeice.GetForType(G.randInt(1,6),pos);
+        return TetrisPeice.GetForType(G.randInt(1,9),pos);
     }
     static GetForType(type,pos){
         switch(type){
@@ -183,7 +183,9 @@ class TetrisPeice{
             case 4 : return new LNTP(pos);
             case 5 : return new RNTP(pos);
             case 6 : return new BoxTP(pos);
-            default : return new RLTP(pos);
+            case 7 : return new PointTP(pos);
+            case 8 : return new DoublePointTP(pos);
+            default : return new EverythingTP(pos);
         }
     }
     getBoxes(){
@@ -193,7 +195,7 @@ class TetrisPeice{
             for(let j = 0 ; j < map[i].length;j++){
                 if(map[i][j] === 1){
                     boxes.push(new TetrisBox({
-                        x: this.pos.x + j * TileSize,y : this.pos.y + i * TileSize
+                        x: this.pos.x + i * TileSize,y : this.pos.y + j * TileSize
                     }));
                 }
             }
@@ -209,7 +211,7 @@ class TetrisPeice{
         for(let i in boxes){
             var box = boxes[i];
             if(box.x + TileSize * vx < 0) return false;
-            if(box.x + TileSize * vx > TileSize * 10) return false;
+            if(box.x + TileSize * vx >= TileSize * 10) return false;
             if(box.y + TileSize * vy >= TileSize * 20) return false;
             if(game.isOccupied(box.x + TileSize * vx, box.y + TileSize * vy)) return false;
         }
@@ -296,28 +298,57 @@ class BoxTP extends TetrisPeice{
         this.sprite = this.GetSprite(this.maps[this.current]);
     }
 }
+class PointTP extends TetrisPeice{
+    constructor(pos){
+        super(pos);
+        this.maps = [
+            [[1]]
+        ]
+        this.sprite = this.GetSprite(this.maps[this.current]);
+    }
+}
+class DoublePointTP extends TetrisPeice{
+    constructor(pos){
+        super(pos);
+        this.maps = [
+            [[1,1]],
+            [[1],[1]]
+        ]
+        this.sprite = this.GetSprite(this.maps[this.current]);
+    }
+}
+class EverythingTP extends TetrisPeice{
+    constructor(pos){
+        super(pos);
+        this.maps = [
+            [[1]],
+            [[1,1],[1,1]],
+            [[1,1,1,1,1]],
+            [[1],[1],[1],[1],[1]],
+            [[1,1]],
+            [[1,1,0],[0,1,1]],
+            [[0,1],[1,1],[1,0]],
+            [[0,1,1],[1,1,0]],
+            [[1,0],[1,1],[0,1]],
+            [[0,1],[0,1],[1,1]],
+            [[1,1,1],[0,0,1]],
+            [[1,1],[1,0],[1,0]],
+            [[1,0,0],[1,1,1]],
+            [[1,0],[1,0],[1,1]],
+            [[0,0,1],[1,1,1],],
+            [[1,1],[0,1],[0,1]],
+            [[1,1,1],[1,0,0]]
+        ]
+        this.sprite = this.GetSprite(this.maps[this.current]);
+    }
+}
 class Game{
     constructor(){
         this.init();
-        document.addEventListener('keydown', (e)=>{
-            if(e.key === 'ArrowLeft'){
-                this.currentPeice.move(-1,0,this);
-            }
-            else if (e.key === 'ArrowRight'){
-                this.currentPeice.move(1,0,this);
-            }
-            else if (e.key === 'ArrowDown'){
-                this.currentPeice.move(0,1,this);
-            }
-            else if (e.key === 'ArrowUp'){
-                this.currentPeice.rotate();
-                //rotate peice
-            }
-        }, false);
     }
     init(){
         const COL1 = "#e7e7e7";
-        var canvasW = TileSize*16;
+        var canvasW = TileSize*13.5;
         var canvasH = TileSize*20;
         this.canvas = G.makeCanvas(canvasW,canvasH);
         this.grid = G.makeCanvas(TileSize*10,TileSize*20);
@@ -330,21 +361,59 @@ class Game{
         this.score = 0;
         this.lines = 0;
         this.level = 0;
+        this.time = 0;
+        this.gameover = 0;
         this.currentPeice = TetrisPeice.makeRandom({x:TileSize*4,y:0});
         this.next = TetrisPeice.makeRandom({x:TileSize*4,y:0});
-        document.body.append(this.canvas);
+        document.body.innerHTML = ``;
+        this.layout = G.makeDom(`<div id=game><div id=sboard></div><div id=cbody ></div><div id=ctrl ></div></div>`);
+        this.layout.querySelector('#cbody').append(this.canvas);
+        this.layout.querySelector('#ctrl').append(this.getcontrols());
+        document.body.append(this.layout);
+        document.addEventListener('keydown', (e)=>{
+            if(e.key === 'ArrowLeft'){
+                this.currentPeice.move(-1,0,this);
+            }
+            else if (e.key === 'ArrowRight'){
+                this.currentPeice.move(1,0,this);
+            }
+            else if (e.key === 'ArrowDown'){
+                this.currentPeice.move(0,1,this);
+            }
+            else if (e.key === 'ArrowUp'){
+                this.currentPeice.rotate();
+            }
+        }, false);
         this.update(0);
     }
-
+    getcontrols(){
+        var controlshtml = `<table><tr><td><button id=btnleft >LEFT</button></td>
+        <td><button id=btnrotate >ROTATE</button></td>
+        <td><button id=btnright >RIGHT</button></td></tr></table>`;
+        controlshtml = G.makeDom(controlshtml.trim());
+        controlshtml.querySelector('#btnleft').onclick = ()=>{
+            this.currentPeice.move(-1,0,this);
+        }
+        controlshtml.querySelector('#btnright').onclick = ()=>{
+            this.currentPeice.move(1,0,this);
+        }
+        controlshtml.querySelector('#btnrotate').onclick = ()=>{
+            this.currentPeice.rotate();
+        }
+        return controlshtml;
+    }
     update(time){
+        this.time++;
+        if(this.gameover) {
+            this.showgamveover();
+            return;
+        }
         this.speedMeter++;
         if(this.speedMeter > 20 - this.speed * 20 ){
             this.speedMeter = 0;
             this.currentPeice.update(time,this);
         }
-
         this.canvas.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
-
         this.canvas.ctx.drawImage(this.grid,0,0);
         this.canvas.ctx.fillText("SCORE",this.grid.width + TileSize/3, 10);
         this.canvas.ctx.fillText(`${this.score}`,this.grid.width + TileSize/3, 20);
@@ -354,8 +423,6 @@ class Game{
         this.canvas.ctx.fillText(`${this.level}`,this.grid.width + TileSize/3, 80);
         this.canvas.ctx.fillText(`NEXT`,this.grid.width + TileSize/3, 100);
         this.canvas.ctx.drawImage(this.next.sprite,this.grid.width + TileSize/3, 110);
-
-
         this.canvas.ctx.drawImage(this.grid,0,0);
         this.currentPeice.draw(this.canvas.ctx);
         this.boxes.forEach(x=>{
@@ -366,13 +433,35 @@ class Game{
     isOccupied(x,y){
         return this.boxes.filter(b=> b.x == x && b.y == y).length != 0;
     }
+    showgamveover(){
+        this.gameover = true;
+        var gameoverlayout = `<div id=gameover>
+        <h1>GAME OVER</h1>
+        <table>
+            <tr><td>Time</td><td>${this.timeToHMS(this.time/1000)}</td></tr>
+            <tr><td>LINES</td><td>${this.lines}</td></tr>
+        </table>
+        <button id=newgame>New Game</button>
+        </div>
+        `;
+        gameoverlayout = DOM.makeDom(gameoverlayout);
+        gameoverlayout.querySelector('#newgame').onclick = ()=>{
+            this.init();
+        }
+        this.layout.innerHTML = ``;
+        this.layout.append(gameoverlayout);
+    }
     checkRowsCompletion(){
         var maxy = 0;
         this.boxes.forEach(b=>{
             maxy = Math.min(b.y,maxy)
         })
-        for(var y = TileSize*20; y > 0; y -= TileSize){
+        for(var y = 0; y < TileSize * 20; y += TileSize){
             var row = this.boxes.filter(b=> b.y == y );
+            if(row.length > 0 && y == 0){
+                this.gameover = true;
+                return;
+            }
             if(row.length == 10){
                 this.lines++;
                 this.score += 10 * (this.level+1);
@@ -381,20 +470,20 @@ class Game{
                     if(box.y < y){
                         box.y += TileSize
                     };
-                })
+                });
                 return this.checkRowsCompletion();
             }
         }
         return true;
     }
     handlePeiceStopMoving(peice){
-        
         peice.getBoxes().forEach(box=>{
             var exist = this.boxes.filter(x=> x.x == box.x && x.y == box.y);
             if(exist.length > 0){
-                
             }
-            this.boxes.push(box);
+            else{
+                this.boxes.push(box);
+            }
             this.checkRowsCompletion()
         })
 
